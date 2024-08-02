@@ -102,12 +102,28 @@ impl<C: Configuration> IngredientImpl<C> {
         }
 
         let next_id = Id::from_u32(self.counter.fetch_add(1, Ordering::Relaxed));
+        let durability = stamps[0].durability;
         let value = Value {
             id: next_id,
             fields,
             stamps,
         };
-        self.struct_map.insert(value)
+        let struct_ = self.struct_map.insert(value);
+        let id = format!(
+            "id_{}_{}",
+            self.ingredient_index.as_usize(),
+            next_id.as_u32(),
+        );
+        println!(r#"  {id}("{:?}")"#, self.database_key_index(struct_));
+        println!(
+            "  style {id} fill:#{}",
+            match durability {
+                Durability::LOW => "666",
+                Durability::MEDIUM => "333",
+                _ => "000",
+            }
+        );
+        struct_
     }
 
     /// Change the value of the field `field_index` to a new value.
@@ -156,17 +172,31 @@ impl<C: Configuration> IngredientImpl<C> {
     ) -> &'db C::Fields {
         local_state::attach(db, |state| {
             let field_ingredient_index = self.ingredient_index.successor(field_index);
+            let input_db_key_index = self.database_key_index(id);
             let id = id.as_id();
             let value = self.struct_map.get(id);
             let stamp = &value.stamps[field_index];
-            state.report_tracked_read(
-                DependencyIndex {
-                    ingredient_index: field_ingredient_index,
-                    key_index: Some(id),
-                },
-                stamp.durability,
-                stamp.changed_at,
+            let dep_index = DependencyIndex {
+                ingredient_index: field_ingredient_index,
+                key_index: Some(id),
+            };
+            let input_id = format!(
+                "  id_{}_{}",
+                input_db_key_index.ingredient_index.as_usize(),
+                input_db_key_index.key_index.as_u32()
             );
+            let id = format!("id_{}_{}", field_ingredient_index.as_usize(), id.as_u32(),);
+            println!(r#"  {id}("{:?}")"#, dep_index);
+            println!(
+                "  style {id} fill:#{}",
+                match stamp.durability {
+                    Durability::LOW => "666",
+                    Durability::MEDIUM => "333",
+                    _ => "000",
+                }
+            );
+            println!("  {id}-->{input_id}");
+            state.report_tracked_read(dep_index, stamp.durability, stamp.changed_at);
             &value.fields
         })
     }

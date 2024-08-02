@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
 use crate::{
-    local_state::ActiveQueryGuard, runtime::StampedValue, storage::DatabaseGen, Cycle, Database,
-    Event, EventKind,
+    durability::Durability,
+    local_state::{ActiveQueryGuard, EdgeKind, QueryOrigin},
+    runtime::StampedValue,
+    storage::DatabaseGen,
+    Cycle, Database, Event, EventKind,
 };
 
 use super::{memo::Memo, Configuration, IngredientImpl};
@@ -87,6 +90,39 @@ where
             self.diff_outputs(db, database_key_index, old_memo, &revisions);
         }
 
+        let id = format!(
+            "id_{}_{}",
+            database_key_index.ingredient_index.as_usize(),
+            key.as_u32(),
+        );
+        println!(r#"  {id}("{:?}")"#, database_key_index,);
+        println!(
+            "  style {id} fill:#{}",
+            match revisions.durability {
+                Durability::LOW => "666",
+                Durability::MEDIUM => "333",
+                _ => "000",
+            }
+        );
+        match &revisions.origin {
+            QueryOrigin::Derived(edges) => {
+                for (edge_kind, dependency_index) in edges.input_outputs.iter() {
+                    if let Some(key_index) = dependency_index.key_index {
+                        let dep_id = format!(
+                            "id_{}_{}",
+                            dependency_index.ingredient_index.as_usize(),
+                            key_index.as_u32()
+                        );
+                        println!(r#"  {dep_id}("{:?}")"#, dependency_index);
+                        match edge_kind {
+                            EdgeKind::Input => println!("  {id}-->{dep_id}"),
+                            EdgeKind::Output => println!("  {dep_id}-->{id}"),
+                        };
+                    }
+                }
+            }
+            _ => {}
+        };
         let value = self
             .insert_memo(
                 db,
