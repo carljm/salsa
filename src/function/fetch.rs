@@ -53,32 +53,40 @@ where
                 // our no-longer-provisional memo.
                 if memo.may_be_provisional() {
                     let database_key_index = self.database_key_index(id);
+                    eprintln!("\nprovisional memo for {database_key_index:#?}");
                     let Some(cycle_heads) = memo.cycle_heads() else {
                         unreachable!(
                             "A just-verified memo must have up-to-date provisional status."
                         );
                     };
                     for head in cycle_heads {
+                        eprintln!("checking cycle head {head:#?}");
                         if *head == database_key_index {
+                            eprintln!("cycle head is me, continuing");
                             continue;
                         }
                         let ingredient = db.zalsa().lookup_ingredient(head.ingredient_index);
                         if ingredient.is_verified_final(db.as_dyn_database(), head.key_index) {
+                            eprintln!("cycle head already verified final, continuing");
                             continue;
                         }
+                        eprintln!("waiting for cycle head");
                         if ingredient.wait_for(db.as_dyn_database(), head.key_index) {
                             // There's a new memo available for the cycle head; fetch our own
                             // updated memo and see if it's still provisional or if the cycle
                             // has resolved.
+                            eprintln!("done waiting for cycle head, re-checking for memo");
                             continue 'outer;
                         } else {
                             // We hit a cycle blocking on the cycle head; this means it's in
                             // our own active query stack and we are responsible to resolve the
                             // cycle, so go ahead and return the provisional memo.
+                            eprintln!("cycle claiming cycle head, returning");
                             return memo;
                         }
                     }
                 }
+                eprintln!("found no problematic cycle head, returning");
                 return memo;
             }
         }
@@ -130,6 +138,7 @@ where
                 return self
                     .initial_value(db, database_key_index.key_index)
                     .map(|initial_value| {
+                        eprintln!("cycle at {database_key_index:#?}");
                         tracing::debug!(
                             "hit cycle at {database_key_index:#?}, \
                             inserting and returning fixpoint initial value"

@@ -143,6 +143,7 @@ where
 
                     active_query = zalsa_local.push_query(database_key_index);
 
+                    eprintln!("iterating {database_key_index:#?}");
                     continue;
                 }
                 tracing::debug!(

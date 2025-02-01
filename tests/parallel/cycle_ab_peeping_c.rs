@@ -60,7 +60,7 @@ fn query_c(db: &dyn KnobsDatabase) -> CycleValue {
     query_b(db)
 }
 
-#[test]
+#[test_log::test]
 fn the_test() {
     std::thread::scope(|scope| {
         let db_t1 = Knobs::default();
@@ -80,4 +80,5 @@ fn the_test() {
             assert_eq!(r, MAX);
         });
     });
+    assert!(false);
 }
